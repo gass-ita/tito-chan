@@ -61,6 +61,10 @@ async def upload_image(file: UploadFile = File(...)):
     # Return a response indicating the UUID of the saved image
     return {"image_uuid": file_uuid}
 
+@app.post("/newThread")
+async def create_thread(thread: Thread):
+    
+
 
 if __name__ == "__main__":
     import uvicorn
