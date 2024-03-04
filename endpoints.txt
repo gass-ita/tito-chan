@@ -1,0 +1,89 @@
+POST: /upload/image -> {"image_uuid": str}
+    use multipart
+
+POST: /newThread -> {"post_id": int}
+    {
+        "username": str,
+        "title": str,
+        "section_id": int,
+
+        "description": str opz,
+        "image_uuid": str opz,
+        "parent_id": int opz
+    }
+
+GET: /getThreads?section_id=section_id&page=page_n&size=size_n
+{
+    "threads": [
+        {
+            "thread_id": int,
+            "username": str,
+            "title": str,
+            "section_id": int,
+            "description": str,
+            "image_uuid": str
+        },
+        ...
+    ],
+    "size": int,
+    "page": int
+}
+
+GET: /getThread?thread_id=thread_id
+{
+    "thread_id": int,
+    "username": str,
+    "title": str,
+    "section_id": int,
+    "description": str,
+    "image_uuid": str,
+    comments: [
+        {
+            "parent_id": int,
+            "thread_id": int,
+            "username": str,
+            "title": str,
+            "section_id": int,
+            "description": str,
+            "image_uuid": str
+        },
+        ...
+    ]
+}
+
+GET /getSections
+{
+    "sections": [
+        {
+            "section_name": str
+        }
+    ]
+}
+
+GET /motd
+{
+    "motd": str
+}
+
+GET /popular_threads?size=size_n
+{
+    "threads": [
+        {
+            "thread_id": int,
+            "username": str,
+            "title": str,
+            "section_id": int,
+            "description": str,
+            "image_uuid": str
+        },
+        ...
+    ],
+    "size": int
+}
+
+
+
+
+
+    
+
