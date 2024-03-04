@@ -26,7 +26,8 @@ GET: /getThreads?section_id=section_id&page=page_n&size=size_n
         ...
     ],
     "size": int,
-    "page": int
+    "page": int,
+    "page_amount": int
 }
 
 GET: /getThread?thread_id=thread_id
