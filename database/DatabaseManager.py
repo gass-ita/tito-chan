@@ -1,7 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, Sequence
+from sqlalchemy import create_engine, Column, Integer, String, Sequence, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from .migrations.migration import Base, Threads
+from .migrations.migration import Base, Posts, Sections
 
 class DatabaseManager:
     def __init__(self, db_uri='sqlite:///:memory:'):
@@ -14,47 +14,66 @@ class DatabaseManager:
         Base.metadata.create_all(self.engine)
 
 
-    def create_thread(self, title, username, content, image_path, section_id):
+    def create_thread(self, title, username, content, image_uuid, section_id):
         session = self.Session()
-        thread = Threads(title=title, username=username, content=content, image_path=image_path, section_id=section_id)
+        thread = Posts(title=title, username=username, content=content, image_uuid=image_uuid, section_id=section_id)
         session.add(thread)
         session.commit()
         session.close()
+        return thread.id
 
-    def get_all_threads(self):
+    def get_threads(self, section_id=None, page=0, size=50):
+        if page < 0 or page >= self.get_thread_max_pages(section_id=section_id, size=size):
+            raise ValueError(f"Page must be >= 0 and < {self.get_thread_max_pages(section_id=section_id, size=size)}")
+        
         session = self.Session()
-        threads = session.query(Threads).all()
+        query = session.query(Posts).filter(Posts.parent_id == None)  # Threads have no parent_id
+        
+        if section_id is not None:
+            query = query.filter(Posts.section_id == section_id)
+        
+        query = query.order_by(Posts.date.asc())
+        
+        threads = query.offset(page * size).limit(size).all()
         session.close()
         return threads
+
+
+
+    def get_thread_max_pages(self, section_id=None, size=50):
+        session = self.Session()
+        query = session.query(func.count(Posts.id))
+
+        if section_id is not None:
+            query = query.filter(Posts.section_id == section_id)
+
+        total_threads = query.scalar()
+        session.close()
+
+        if total_threads is None:
+            return -1
+        
+        return (total_threads + size - 1) // size
+
     
-    def get_thread_with_limit(self, limit):
-        session = self.Session()
-        threads = session.query(Threads).limit(limit).all()
-        session.close()
-        return threads
-    
-    def get_thread_by_section(self, section_id):
-        session = self.Session()
-        threads = session.query(Threads).filter(Threads.section_id == section_id).all()
-        session.close()
-        return threads
     
     def get_thread_by_id(self, thread_id):
         session = self.Session()
-        thread = session.query(Threads).filter(Threads.id == thread_id).first()
+        thread = session.query(Posts).filter(Posts.id == thread_id).first()
         session.close()
         return thread
     
     def delete_thread_by_id(self, thread_id):
         session = self.Session()
-        thread = session.query(Threads).filter(Threads.id == thread_id).first()
-        session.delete(thread)
-        session.commit()
+        thread = session.query(Posts).filter(Posts.id == thread_id).first()
+        if thread:
+            session.delete(thread)
+            session.commit()
         session.close()
-
+        
     def update_thread_by_id(self, thread_id, title, username, content, image_path, section_id):
         session = self.Session()
-        thread = session.query(Threads).filter(Threads.id == thread_id).first()
+        thread = session.query(Posts).filter(Posts.id == thread_id).first()
         thread.title = title
         thread.username = username
         thread.content = content
@@ -62,6 +81,13 @@ class DatabaseManager:
         thread.section_id = section_id
         session.commit()
         session.close()
+
+    def get_comments_by_thread_id(self, thread_id):
+        # TODO: implement paging here
+        session = self.Session()
+        comments = session.query(Posts).filter(Posts.parent_id == thread_id).all()
+        session.close()
+        return comments
 
     def create_section(self, section_name):
         session = self.Session()

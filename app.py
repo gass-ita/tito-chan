@@ -5,12 +5,14 @@ import uuid
 from PIL import Image
 from os import getenv
 from dotenv import load_dotenv
+from models import Thread
+from database import DatabaseManager
 
 load_dotenv()
 
 # Define the directory where you want to save the uploaded files
 IMAGE_DIRECTORY = getenv("IMAGES_DIRECTORY", "uploads/images")
-
+DATABASE_URL = getenv("DATABASE_URL", "sqlite:///./test.db")
 REQUIRED_DIRECTORIES = [IMAGE_DIRECTORY]
 
 for d in REQUIRED_DIRECTORIES:
@@ -21,6 +23,8 @@ for d in REQUIRED_DIRECTORIES:
     except OSError:
         print(f"{d} already exists!")
 
+
+db:DatabaseManager = DatabaseManager(DATABASE_URL)
 app = FastAPI()
 
 
@@ -63,7 +67,65 @@ async def upload_image(file: UploadFile = File(...)):
 
 @app.post("/newThread")
 async def create_thread(thread: Thread):
+    id = db.create_thread(thread.title, thread.username, thread.content, thread.image_uuid, thread.section_id, thread.parent_id)
+    return {"post_id": id}
+
+@app.get("/getThreads?section_id={section_id}&page={page}&size={size}")
+async def get_threads_by_section(section_id: int, page: int, size: int):
+    threads = db.get_threads(section_id, page, size)
     
+    #create a json response
+    response = []
+    for thread in threads:
+        response.append({
+            "id": thread.id,
+            "title": thread.title,
+            "username": thread.username,
+            "content": thread.content,
+            "image_uuid": thread.image_uuid,
+            "section_id": thread.section_id,
+            "parent_id": thread.parent_id
+        })
+
+    response.append({"page": page})
+    response.append({"size": len(response)})
+
+    return response
+
+@app.get("/getThread?thread_id={thread_id}")
+async def get_thread_by_id(thread_id: int):
+    thread = db.get_thread_by_id(thread_id)
+    response = {
+        "id": thread.id,
+        "title": thread.title,
+        "username": thread.username,
+        "content": thread.content,
+        "image_uuid": thread.image_uuid,
+        "section_id": thread.section_id,
+        "parent_id": thread.parent_id
+
+    }
+    comments = db.get_comments_by_thread_id(thread_id)
+    response["comments"] = []
+    for comment in comments:
+        response["comments"].append({
+            "id": comment.id,
+            "title": comment.title,
+            "username": comment.username,
+            "content": comment.content,
+            "image_uuid": comment.image_uuid,
+            "section_id": comment.section_id,
+            "parent_id": comment.parent_id
+        })
+
+    return response
+
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
