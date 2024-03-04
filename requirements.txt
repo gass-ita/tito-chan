@@ -1,0 +1,5 @@
+fastAPI
+uvicorn
+python-multipart
+Pillow
+python-dotenv
