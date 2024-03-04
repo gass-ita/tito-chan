@@ -14,6 +14,8 @@ class Posts(Base):
     section_id = Column(Integer, ForeignKey("sections.id", ondelete="CASCADE"), nullable=False)
     date = Column(DateTime, nullable=False, default=func.current_timestamp())
 
+    
+
 class Sections(Base):
     __tablename__ = 'sections'
     id = Column(Integer, Sequence('section_id_seq'), primary_key=True)

@@ -6,7 +6,7 @@ from PIL import Image
 from os import getenv
 from dotenv import load_dotenv
 from models import Thread
-from database import DatabaseManager
+from database.DatabaseManager import DatabaseManager
 
 load_dotenv()
 
@@ -24,7 +24,9 @@ for d in REQUIRED_DIRECTORIES:
         print(f"{d} already exists!")
 
 
-db:DatabaseManager = DatabaseManager(DATABASE_URL)
+db = DatabaseManager(DATABASE_URL)
+
+
 app = FastAPI()
 
 
@@ -65,34 +67,55 @@ async def upload_image(file: UploadFile = File(...)):
     # Return a response indicating the UUID of the saved image
     return {"image_uuid": file_uuid}
 
+
 @app.post("/newThread")
 async def create_thread(thread: Thread):
-    id = db.create_thread(thread.title, thread.username, thread.content, thread.image_uuid, thread.section_id, thread.parent_id)
+    id = db.create_thread(
+        title=thread.title,
+        username=thread.username,
+        content=thread.content,
+        image_uuid=thread.image_uuid,
+        section_id=thread.section_id,
+        parent_id=thread.parent_id,
+    )
     return {"post_id": id}
 
-@app.get("/getThreads?section_id={section_id}&page={page}&size={size}")
-async def get_threads_by_section(section_id: int, page: int, size: int):
-    threads = db.get_threads(section_id, page, size)
-    
-    #create a json response
-    response = []
+
+@app.get("/getThreads")
+async def get_threads_by_section(section_id: int = None, page: int = 0, size: int = 50):
+    try:
+        threads = db.get_threads(section_id, page, size)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    response_obj = {}
+
+    # create a json response
+    t = []
     for thread in threads:
-        response.append({
-            "id": thread.id,
-            "title": thread.title,
-            "username": thread.username,
-            "content": thread.content,
-            "image_uuid": thread.image_uuid,
-            "section_id": thread.section_id,
-            "parent_id": thread.parent_id
-        })
+        t.append(
+            {
+                "id": thread.id,
+                "title": thread.title,
+                "username": thread.username,
+                "content": thread.content,
+                "image_uuid": thread.image_uuid,
+                "section_id": thread.section_id,
+                "parent_id": thread.parent_id,
+            }
+        )
 
-    response.append({"page": page})
-    response.append({"size": len(response)})
+    response_obj["threads"] = t
+    response_obj["size"] = len(threads)
+    response_obj["page"] = page
+    response_obj["page_amount"] = db.get_post_max_pages(
+        section_id=section_id, size=size
+    )
 
-    return response
+    return response_obj
 
-@app.get("/getThread?thread_id={thread_id}")
+
+@app.get("/getThread")
 async def get_thread_by_id(thread_id: int):
     thread = db.get_thread_by_id(thread_id)
     response = {
@@ -102,30 +125,24 @@ async def get_thread_by_id(thread_id: int):
         "content": thread.content,
         "image_uuid": thread.image_uuid,
         "section_id": thread.section_id,
-        "parent_id": thread.parent_id
-
+        "parent_id": thread.parent_id,
     }
     comments = db.get_comments_by_thread_id(thread_id)
     response["comments"] = []
     for comment in comments:
-        response["comments"].append({
-            "id": comment.id,
-            "title": comment.title,
-            "username": comment.username,
-            "content": comment.content,
-            "image_uuid": comment.image_uuid,
-            "section_id": comment.section_id,
-            "parent_id": comment.parent_id
-        })
+        response["comments"].append(
+            {
+                "id": comment.id,
+                "title": comment.title,
+                "username": comment.username,
+                "content": comment.content,
+                "image_uuid": comment.image_uuid,
+                "section_id": comment.section_id,
+                "parent_id": comment.parent_id,
+            }
+        )
 
     return response
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
