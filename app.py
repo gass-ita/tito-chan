@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Response
 from fastapi.responses import FileResponse
 import os
 import uuid
@@ -7,6 +7,8 @@ from os import getenv
 from dotenv import load_dotenv
 from models import Post
 from database.DatabaseManager import DatabaseManager
+from io import BytesIO
+
 
 load_dotenv()
 
@@ -14,6 +16,22 @@ load_dotenv()
 TMP_IMAGE_DIRECTORY = getenv("TMP_IMAGES_DIRECTORY", "uploads/images/tmp")
 IMAGE_DIRECTORY = getenv("IMAGES_DIRECTORY", "uploads/images")
 IMAGE_EXTENSION = getenv("IMAGE_EXTENSION", "webp")
+COMPRESS_IMAGE = getenv("COMPRESS_IMAGE", "true").lower() in [
+    "true",
+    "1",
+    "t",
+    "y",
+    "yes",
+    "yeah",
+    "yup",
+    "certainly",
+    "uh-huh",
+]
+
+if COMPRESS_IMAGE:
+    import gzip
+    import shutil
+
 DATABASE_URL = getenv("DATABASE_URL", "sqlite:///./test.db")
 REQUIRED_DIRECTORIES = [TMP_IMAGE_DIRECTORY, IMAGE_DIRECTORY]
 
@@ -25,6 +43,25 @@ for d in REQUIRED_DIRECTORIES:
         print(f"{d} created!")
     except OSError:
         print(f"{d} already exists!")
+
+
+def compress_file(file_path: str, out_file: str = None):
+    if not out_file:
+        out_file = file_path + ".gz"
+    with open(file_path, "rb") as f_in:
+        with gzip.open(out_file, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+
+def decompress_file(gzip_file: str, out_file: str = None):
+    if not out_file:
+        if gzip_file.endswith(".gz"):
+            out_file = gzip_file[:-3]
+        else:
+            out_file = gzip_file + ".unarchived"
+    with gzip.open(gzip_file, "rb") as f_in:
+        with open(out_file, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
 
 
 db = DatabaseManager(DATABASE_URL)
@@ -66,18 +103,30 @@ async def upload_image(file: UploadFile = File(...)):
             status_code=400, detail="Uploaded file is not a valid image"
         )
 
+    if COMPRESS_IMAGE:
         # Convert the image to the desired extension
-    converted_file_path = os.path.join(
-        IMAGE_DIRECTORY, file_uuid + "." + IMAGE_EXTENSION
-    )
+        converted_file_path = os.path.join(
+            TMP_IMAGE_DIRECTORY, file_uuid + "." + IMAGE_EXTENSION
+        )
+    else:
+        converted_file_path = os.path.join(
+            IMAGE_DIRECTORY, file_uuid + "." + IMAGE_EXTENSION
+        )
+
     img = Image.open(file_path)
     img.save(converted_file_path)
     img.close()
 
-    # TODO: Compress the image
-
     # Remove the original file
     os.remove(file_path)
+
+    if COMPRESS_IMAGE:
+        archive_path = os.path.join(
+            IMAGE_DIRECTORY, file_uuid + "." + IMAGE_EXTENSION + ".gz"
+        )
+        compress_file(converted_file_path, archive_path)
+        print(str(converted_file_path))
+        os.remove(converted_file_path)
 
     # Return a response indicating the UUID of the saved image
     return {"image_uuid": file_uuid}
@@ -193,19 +242,57 @@ async def get_popular_threads(size: int = 10):
 @app.get("/retrieve/image/{image_uuid}")
 async def retrieve_image(image_uuid: str):
     print(image_uuid)
-    if image_uuid.endswith(IMAGE_EXTENSION) and os.path.exists(
-        os.path.join(IMAGE_DIRECTORY, image_uuid)
-    ):
-        return FileResponse(
-            os.path.join(IMAGE_DIRECTORY, image_uuid),
-            media_type="image/" + IMAGE_EXTENSION,
-        )
+    if not COMPRESS_IMAGE:
+        if image_uuid.endswith(IMAGE_EXTENSION) and os.path.exists(
+            os.path.join(IMAGE_DIRECTORY, image_uuid)
+        ):
+            return FileResponse(
+                os.path.join(IMAGE_DIRECTORY, image_uuid),
+                media_type="image/" + IMAGE_EXTENSION,
+            )
 
-    path = os.path.join(IMAGE_DIRECTORY, image_uuid + "." + IMAGE_EXTENSION)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=400, detail="uuid not found")
+        path = os.path.join(IMAGE_DIRECTORY, image_uuid + "." + IMAGE_EXTENSION)
+        if not os.path.exists(path):
+            raise HTTPException(status_code=400, detail="uuid not found")
 
-    return FileResponse(path, media_type="image/" + IMAGE_EXTENSION)
+        return FileResponse(path, media_type="image/" + IMAGE_EXTENSION)
+    else:
+        if image_uuid.endswith(IMAGE_EXTENSION) and os.path.exists(
+            os.path.join(IMAGE_DIRECTORY, image_uuid + ".gz")
+        ):
+            decompress_file(
+                os.path.join(IMAGE_DIRECTORY, image_uuid + ".gz"),
+                os.path.join(TMP_IMAGE_DIRECTORY, image_uuid),
+            )
+
+            img_path = os.path.join(TMP_IMAGE_DIRECTORY, image_uuid)
+        else:
+            path = os.path.join(
+                IMAGE_DIRECTORY, image_uuid + "." + IMAGE_EXTENSION + ".gz"
+            )
+
+            if not os.path.exists(path):
+                raise HTTPException(status_code=400, detail="uuid not found")
+
+            decompress_file(
+                os.path.join(
+                    IMAGE_DIRECTORY, image_uuid + "." + IMAGE_EXTENSION + ".gz"
+                ),
+                os.path.join(TMP_IMAGE_DIRECTORY, image_uuid + "." + IMAGE_EXTENSION),
+            )
+
+            img_path = os.path.join(
+                TMP_IMAGE_DIRECTORY, image_uuid + "." + IMAGE_EXTENSION
+            )
+
+        image = Image.open(img_path)
+
+        # Create an in-memory file-like object
+        img_io = BytesIO()
+        image.save(img_io, IMAGE_EXTENSION.upper())
+        # Return the image response
+        # TODO: FIX ME!!
+        return ""
 
 
 if __name__ == "__main__":
