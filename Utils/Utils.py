@@ -23,7 +23,7 @@ def decompress_bytes(data: bytes) -> bytes:
 
 
 def compress_file(
-    file: Union[str, bytes], out_file: str = None, save_decompressed_file: bool = True
+    file: Union[str, bytes], out_file: str = None, save_compressed_file: bool = True
 ) -> bytes:
     if isinstance(file, str):
         with open(file, "rb") as f_in:
@@ -38,7 +38,7 @@ def compress_file(
             out_file = file + ".gz"
         else:
             return compressed_data
-    if save_decompressed_file:
+    if save_compressed_file:
         with open(out_file, "wb") as f_out:
             f_out.write(compressed_data)
 
