@@ -1,11 +1,13 @@
-from sqlalchemy import create_engine, Column, Integer, String, Sequence, func
+from sqlalchemy import create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from .migrations.migration import Base, Posts, Sections
+from typing import Union
+from sqlalchemy.engine.url import URL
 
 
 class DatabaseManager:
-    def __init__(self, db_uri="sqlite:///:memory:"):
+    def __init__(self, db_uri: Union[str, URL] = "sqlite:///:memory:"):
         self.engine = create_engine(db_uri, echo=True)
         self.Base = declarative_base()
         self.Session = sessionmaker(bind=self.engine)
@@ -23,6 +25,7 @@ class DatabaseManager:
         image_uuid: str = None,
         parent_id: int = None,
     ):
+        # TODO: check for image_uuid existence, section and parent
         try:
             session = self.Session()
             post = Posts(
@@ -40,7 +43,16 @@ class DatabaseManager:
         finally:
             session.close()
 
-    def get_threads(self, section_id=None, page=0, size=50):
+    def get_threads(
+        self,
+        section_id: int = None,
+        page: int = 0,
+        size: int = 50,
+        ascending: bool = False,
+    ):
+        if size <= 0:
+            raise ValueError("size must be > 0")
+
         if page < 0 or page >= self.get_post_max_pages(
             section_id=section_id, size=size
         ):
@@ -48,21 +60,24 @@ class DatabaseManager:
                 f"Page must be >= 0 and < {self.get_post_max_pages(section_id=section_id, size=size)}"
             )
 
-        if size < 0:
-            raise ValueError("size must be >= 0")
-
         try:
             session = self.Session()
+            # ! leave the boolean operand '==' as 'is' doesn't work.
             query = session.query(Posts).filter(
-                Posts.parent_id is None
-            )  # Threads have no parent_id
+                Posts.parent_id == None
+            )  # Threads have no parent_id  # noqa: E711
 
             if section_id is not None:
+                print("searching for section_id =", section_id)
                 query = query.filter(Posts.section_id == section_id)
 
-            query = query.order_by(Posts.date.desc())
+            if ascending:
+                query = query.order_by(Posts.date.asc())
+            else:
+                query = query.order_by(Posts.date.desc())
 
             threads = query.offset(page * size).limit(size).all()
+            print("found", len(threads), "threads")
             return threads
         finally:
             session.close()
@@ -121,13 +136,16 @@ class DatabaseManager:
             session.close()
 
     def get_comments_by_thread_id(self, parent_id, page=0, size=50):
+        if size < 0:
+            raise ValueError("size must be >= 0")
+
+        if self.get_post_max_pages(parent_id=parent_id, size=size) == 0:
+            return []
+
         if page < 0 or page >= self.get_post_max_pages(parent_id=parent_id, size=size):
             raise ValueError(
                 f"Page must be >= 0 and < {self.get_post_max_pages(parent_id=parent_id, size=size)}"
             )
-
-        if size < 0:
-            raise ValueError("size must be >= 0")
 
         try:
             session = self.Session()
