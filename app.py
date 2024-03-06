@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from models import Post
 from database.DatabaseManager import DatabaseManager
 from io import BytesIO
-from Utils.Utils import compress_file, compress_bytes, decompress_bytes, decompress_file
+from Utils.Compression import compress_file, decompress_file, is_compressed
 
 
 load_dotenv()
@@ -189,12 +189,26 @@ async def get_sections():
 
 @app.get("/motd")
 async def get_motd():
-    pass
+    return {"motd": db.get_random_motd().motd}
+
+
+@app.get("/getSection")
+async def get_section():
+    return {"section_id": 1, "section_name": "section"}
 
 
 @app.get("/popular_threads")
 async def get_popular_threads(size: int = 10):
-    pass
+    return [
+        {
+            "thread_id": 1,
+            "username": "123",
+            "title": "1234",
+            "section_id": "1234",
+            "description": "1234",
+            "image_uuid": None,
+        }
+    ]
 
 
 @app.get("/retrieve/image/{image_uuid}")

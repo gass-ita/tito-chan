@@ -22,6 +22,29 @@ def decompress_bytes(data: bytes) -> bytes:
             return f_out.getvalue()
 
 
+def is_compressed_bytes(data: bytes) -> bool:
+    """
+    Checks if a byte stream is compressed using the magic number of gzip format.
+
+    Args:
+        data: The byte stream to check.
+
+    Returns:
+        True if the data is compressed, False otherwise.
+    """
+    return len(data) > 1 and data[:2] == b"\x1f\x8b"  # Check for gzip magic number
+
+
+def is_compressed(file: Union[str, bytes]) -> bool:
+    if isinstance(file, str):
+        with open(file, "rb") as f_in:
+            data = f_in.read()
+    else:
+        data = file
+
+    return is_compressed_bytes(data)
+
+
 def compress_file(
     file: Union[str, bytes], out_file: str = None, save_compressed_file: bool = True
 ) -> bytes:

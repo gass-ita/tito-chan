@@ -1,10 +1,11 @@
 from pydantic import BaseModel
+from typing import Union
 
 
 class Post(BaseModel):
-    username: str = "Anonymous"
+    username: Union[str, None] = "Anonymous"
     section_id: int
     title: str
-    content: str = None
-    image_uuid: str = None
-    parent_id: int = None
+    content: Union[str, None] = None
+    image_uuid: Union[str, None] = None
+    parent_id: Union[int, None] = None

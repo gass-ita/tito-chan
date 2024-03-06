@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from .migrations.migration import Base, Posts, Sections
+from .migrations.migration import Base, Posts, Sections, Motds
 from typing import Union
 from sqlalchemy.engine.url import URL
 
@@ -172,6 +172,17 @@ class DatabaseManager:
             session = self.Session()
             sections = session.query(Sections).all()
             return sections
+        finally:
+            session.close()
+
+    def get_random_motd(self) -> Motds:
+        import random
+
+        try:
+            session = self.Session()
+            motds = session.query(Motds).all()
+            motd = random.choice(motds)
+            return motd
         finally:
             session.close()
 
