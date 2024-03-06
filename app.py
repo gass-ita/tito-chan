@@ -220,20 +220,25 @@ async def get_motd():
 
 
 @app.get("/getSection")
-async def get_section():
-    return {"section_id": 1, "section_name": "section"}
+async def get_section(section_id: int):
+    section = db.get_section_by_id(section_id)
+    # return {"section_id": 1, "section_name": "section"}
+    return {"section_id": section.id, "section_name": section.section_name}
 
 
 @app.get("/popular_threads")
 async def get_popular_threads(size: int = 10):
+    post = db.get_random_post()
+    print(post.__dict__)
     return [
         {
-            "thread_id": 1,
-            "username": "123",
-            "title": "1234",
-            "section_id": "1234",
-            "description": "1234",
-            "image_uuid": None,
+            "thread_id": post.id,
+            "title": post.title,
+            "username": post.username,
+            "content": post.content,
+            "image_uuid": post.image_uuid,
+            "section_id": post.section_id,
+            "parent_id": post.parent_id,
         }
     ]
 
