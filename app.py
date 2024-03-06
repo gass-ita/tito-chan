@@ -21,7 +21,7 @@ load_dotenv()
 # Define the directory where you want to save the uploaded files
 TMP_IMAGE_DIRECTORY = getenv("TMP_IMAGES_DIRECTORY", "uploads/images/tmp")
 IMAGE_DIRECTORY = getenv("IMAGES_DIRECTORY", "uploads/images")
-IMAGE_EXTENSION = getenv("IMAGE_EXTENSION", "png")
+IMAGE_EXTENSION = getenv("IMAGE_EXTENSION", "webp")
 COMPRESS_IMAGE = getenv("COMPRESS_IMAGE", "true").lower() in [
     "true",
     "1",
@@ -39,13 +39,18 @@ DATABASE_URL = getenv("DATABASE_URL", "sqlite:///./test.db")
 REQUIRED_DIRECTORIES = [TMP_IMAGE_DIRECTORY, IMAGE_DIRECTORY]
 
 
-for d in REQUIRED_DIRECTORIES:
-    print(f"checking if {d} exists...")
-    try:
-        os.makedirs(d, exist_ok=False)
-        print(f"{d} created!")
-    except OSError:
-        print(f"{d} already exists!")
+def required_directories_init():
+    for d in REQUIRED_DIRECTORIES:
+        print(f"checking if {d} exists...")
+        try:
+            os.makedirs(d, exist_ok=False)
+            print(f"{d} created!")
+        except OSError:
+            print(f"{d} already exists!")
+
+
+def initialization():
+    required_directories_init()
 
 
 db = DatabaseManager(DATABASE_URL)
@@ -68,24 +73,42 @@ async def upload_image(image: UploadFile = File(...)):
     # Generate a unique UUID for the file
     file_uuid = str(uuid.uuid4())
 
-    contents = await image.read()
+    content = await image.read()
 
     try:
-        img = Image.open(BytesIO(contents))
+        img = Image.open(BytesIO(content))
         img.verify()  # Verify if it's a valid image file
-        img.close()
-    except Exception:
+
+    except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=400, detail="Uploaded file is not a valid image"
         )
 
+    img = Image.open(BytesIO(content))
+
     final_image_path = os.path.join(IMAGE_DIRECTORY, file_uuid + "." + IMAGE_EXTENSION)
 
+    converted_content = BytesIO()
+
+    try:
+        img.save(converted_content, format=IMAGE_EXTENSION.upper())
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Uploaded image cannot be converted in {IMAGE_EXTENSION}!",
+        )
+
+    converted_bytes = converted_content.getvalue()
+
     if COMPRESS_IMAGE:
-        compress_file(contents, final_image_path + ".gz")
+        compress_file(converted_bytes, final_image_path + ".gz")
+        img.close()
     else:
         with open(final_image_path, "wb") as f_out:
-            f_out.write(contents)
+            f_out.write(converted_bytes)
+        img.close()
     # Return a response indicating the UUID of the saved image
     return {"image_uuid": file_uuid}
 
@@ -146,6 +169,10 @@ async def get_threads_by_section(
 @app.get("/getPost")
 async def get_post_by_id(post_id: int):
     thread = db.get_thread_by_id(post_id)
+    if not thread:
+        return HTTPException(
+            status_code=400, detail=f"no post fount with id = {post_id}"
+        )
     response = {
         "id": thread.id,
         "title": thread.title,
