@@ -14,6 +14,12 @@ from models import Post
 from database.DatabaseManager import DatabaseManager
 from io import BytesIO
 from Utils.Compression import compress_file, decompress_file, is_compressed
+from init import (
+    required_directories_init,
+    check_save_support,
+    check_save_all_support,
+    get_best_conversion,
+)
 
 
 load_dotenv()
@@ -21,6 +27,7 @@ load_dotenv()
 # Define the directory where you want to save the uploaded files
 TMP_IMAGE_DIRECTORY = getenv("TMP_IMAGES_DIRECTORY", "uploads/images/tmp")
 IMAGE_DIRECTORY = getenv("IMAGES_DIRECTORY", "uploads/images")
+IMAGE_FORMAT = getenv("IMAGE_FORMAT", "webp").upper()
 IMAGE_EXTENSION = getenv("IMAGE_EXTENSION", "webp")
 COMPRESS_IMAGE = getenv("COMPRESS_IMAGE", "true").lower() in [
     "true",
@@ -37,25 +44,35 @@ COMPRESS_IMAGE = getenv("COMPRESS_IMAGE", "true").lower() in [
 
 DATABASE_URL = getenv("DATABASE_URL", "sqlite:///./test.db")
 REQUIRED_DIRECTORIES = [TMP_IMAGE_DIRECTORY, IMAGE_DIRECTORY]
-
-
-def required_directories_init():
-    for d in REQUIRED_DIRECTORIES:
-        print(f"checking if {d} exists...")
-        try:
-            os.makedirs(d, exist_ok=False)
-            print(f"{d} created!")
-        except OSError:
-            print(f"{d} already exists!")
+SAVE_ALL = False
+IMAGE_MODE = "P"
 
 
 def initialization():
-    required_directories_init()
+    required_directories_init(REQUIRED_DIRECTORIES=REQUIRED_DIRECTORIES)
+
+    if not check_save_support(IMAGE_FORMAT):
+        print(f"Image extension {IMAGE_FORMAT} does not support saving!")
+        exit(1)
+    else:
+        print(f"Image extension {IMAGE_FORMAT} supports saving!")
+
+    global SAVE_ALL
+    SAVE_ALL = check_save_all_support(IMAGE_FORMAT)
+
+    if SAVE_ALL:
+        print(f"Image extension {IMAGE_FORMAT} supports saving all frames!")
+    else:
+        print(f"Image extension {IMAGE_FORMAT} does not support saving all frames!")
+
+    global IMAGE_MODE
+    IMAGE_MODE = get_best_conversion(IMAGE_FORMAT)
+
+    if IMAGE_MODE:
+        print(f"Image extension {IMAGE_FORMAT} supports {IMAGE_MODE} mode!")
 
 
 db = DatabaseManager(DATABASE_URL)
-
-
 app = FastAPI()
 
 
@@ -90,14 +107,22 @@ async def upload_image(image: UploadFile = File(...)):
     final_image_path = os.path.join(IMAGE_DIRECTORY, file_uuid + "." + IMAGE_EXTENSION)
 
     converted_content = BytesIO()
+    img = img.convert(IMAGE_MODE)
 
     try:
-        img.save(converted_content, format=IMAGE_EXTENSION.upper())
+        if SAVE_ALL:
+            print("saving all frames...")
+            img.save(converted_content, format=IMAGE_FORMAT.upper(), save_all=True)
+            print("saved!")
+        else:
+            print("saving...")
+            img.save(converted_content, format=IMAGE_FORMAT.upper())
+            print("saved!")
     except Exception as e:
         print(e)
         raise HTTPException(
             status_code=400,
-            detail=f"Uploaded image cannot be converted in {IMAGE_EXTENSION}!",
+            detail=f"Uploaded image cannot be converted in {IMAGE_FORMAT}!",
         )
 
     converted_bytes = converted_content.getvalue()
@@ -252,14 +277,14 @@ async def retrieve_image(image_uuid: str):
         ):
             return FileResponse(
                 os.path.join(IMAGE_DIRECTORY, image_uuid),
-                media_type="image/" + IMAGE_EXTENSION,
+                media_type="image/" + IMAGE_FORMAT.lower(),
             )
 
         path = os.path.join(IMAGE_DIRECTORY, image_uuid + "." + IMAGE_EXTENSION)
         if not os.path.exists(path):
             raise HTTPException(status_code=400, detail="uuid not found")
 
-        return FileResponse(path, media_type="image/" + IMAGE_EXTENSION)
+        return FileResponse(path, media_type="image/" + IMAGE_FORMAT.lower())
     else:
         if image_uuid.endswith(IMAGE_EXTENSION) and os.path.exists(
             os.path.join(IMAGE_DIRECTORY, image_uuid + ".gz")
@@ -288,10 +313,11 @@ async def retrieve_image(image_uuid: str):
             )
 
         img_io.seek(0)
-        return StreamingResponse(img_io, media_type="image/" + IMAGE_EXTENSION)
+        return StreamingResponse(img_io, media_type="image/" + IMAGE_FORMAT.lower())
 
 
 if __name__ == "__main__":
+    initialization()
     import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
