@@ -21,11 +21,12 @@ class DatabaseManager:
     def session_management(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
+            print("session management called...")
             session = self.session_maker()
+            print("session created...")
             try:
-                with session.begin():
-                    kwargs["session"] = session
-                    result = func(self, *args, **kwargs)
+                kwargs["session"] = session
+                result = func(self, *args, **kwargs)
                 return result
             except:
                 session.rollback()
@@ -34,11 +35,22 @@ class DatabaseManager:
             finally:
                 if session:
                     try:
+                        print("committing session...")
                         session.commit()
+                        print("committed!")
+                        pass
                     except InvalidRequestError:
+                        print("already committed!")
                         pass
                     if session.is_active:
-                        session.close()
+                        try:
+                            print("closing session...")
+                            session.close()
+                            print("closed!")
+                            pass
+                        except InvalidRequestError:
+                            print("already closed!")
+                            pass
 
         return wrapper
 
@@ -81,9 +93,12 @@ class DatabaseManager:
             parent_id=parent_id,
         )
         session.add(post)
+
+        post_obj = self.get_base_obj_properties(post)
+
         session.commit()
 
-        return post.id
+        return post_obj.id
 
     @session_management
     def get_threads(
