@@ -18,14 +18,13 @@ from init import (
     required_directories_init,
     check_save_support,
     check_save_all_support,
-    get_best_conversion,
+    check_color_mode_support,
 )
 
 
 load_dotenv()
 
 # Define the directory where you want to save the uploaded files
-TMP_IMAGE_DIRECTORY = getenv("TMP_IMAGES_DIRECTORY", "uploads/images/tmp")
 IMAGE_DIRECTORY = getenv("IMAGES_DIRECTORY", "uploads/images")
 IMAGE_FORMAT = getenv("IMAGE_FORMAT", "webp").upper()
 IMAGE_EXTENSION = getenv("IMAGE_EXTENSION", "webp")
@@ -42,10 +41,11 @@ COMPRESS_IMAGE = getenv("COMPRESS_IMAGE", "true").lower() in [
 ]
 
 
-DATABASE_URL = getenv("DATABASE_URL", "sqlite:///./test.db")
-REQUIRED_DIRECTORIES = [TMP_IMAGE_DIRECTORY, IMAGE_DIRECTORY]
+DATABASE_URL = getenv("DATABASE_URL", "sqlite:///./database.db")
+
+REQUIRED_DIRECTORIES = [IMAGE_DIRECTORY]
 SAVE_ALL = False
-IMAGE_MODE = "P"
+COLOR_MODE = "RGB"
 
 
 def initialization():
@@ -65,11 +65,10 @@ def initialization():
     else:
         print(f"Image extension {IMAGE_FORMAT} does not support saving all frames!")
 
-    global IMAGE_MODE
-    IMAGE_MODE = get_best_conversion(IMAGE_FORMAT)
+    global COLOR_MODE
+    COLOR_MODE = check_color_mode_support(IMAGE_FORMAT)
 
-    if IMAGE_MODE:
-        print(f"Image extension {IMAGE_FORMAT} supports {IMAGE_MODE} mode!")
+    print(f"Color mode {COLOR_MODE} is supported by {IMAGE_FORMAT}!")
 
 
 db = DatabaseManager(DATABASE_URL)
@@ -84,7 +83,6 @@ async def root():
 @app.post("/upload/image")
 async def upload_image(image: UploadFile = File(...)):
     # Create the directory if it doesn't exist
-    os.makedirs(TMP_IMAGE_DIRECTORY, exist_ok=True)
     os.makedirs(IMAGE_DIRECTORY, exist_ok=True)
 
     # Generate a unique UUID for the file
@@ -107,7 +105,6 @@ async def upload_image(image: UploadFile = File(...)):
     final_image_path = os.path.join(IMAGE_DIRECTORY, file_uuid + "." + IMAGE_EXTENSION)
 
     converted_content = BytesIO()
-    img = img.convert(IMAGE_MODE)
 
     try:
         if SAVE_ALL:
@@ -116,6 +113,7 @@ async def upload_image(image: UploadFile = File(...)):
             print("saved!")
         else:
             print("saving...")
+            img = img.convert(COLOR_MODE)
             img.save(converted_content, format=IMAGE_FORMAT.upper())
             print("saved!")
     except Exception as e:

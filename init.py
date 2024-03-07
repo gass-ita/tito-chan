@@ -14,12 +14,14 @@ def required_directories_init(REQUIRED_DIRECTORIES: list):
 
 
 def check_save_support(image_format: str) -> bool:
-    img = Image.new("RGB", (1, 1))  # Create a dummy image
-    buffer = BytesIO()
-    buffer.seek(0)
-    img.save(buffer, format=image_format.upper())  # Save to BytesIO
-    print("sas")
-    return True
+    try:
+        img = Image.new("RGB", (1, 1))  # Create a dummy image
+        buffer = BytesIO()
+        buffer.seek(0)
+        img.save(buffer, format=image_format.upper())  # Save to BytesIO
+        return True
+    except KeyError:
+        return False
 
 
 def check_save_all_support(image_format: str) -> bool:
@@ -35,38 +37,18 @@ def check_save_all_support(image_format: str) -> bool:
         return False
 
 
-def get_best_conversion(image_format: str) -> str:
+def check_color_mode_support(
+    image_format: str, formats: list[str] = ["RGBA", "RGB", "L"]
+) -> str:
     buffer = BytesIO()
-    try:
-        img = Image.new("P", (1, 1))  # Create a dummy image
-        img = img.convert("P")
-        img.save(buffer, format=image_format.upper())  # Save to BytesIO
-        return "P"
-    except OSError:
-        pass
 
-    try:
-        img = Image.new("RGBA", (1, 1))  # Create a dummy image
-        img = img.convert("RGBA")
-        img.save(buffer, format=image_format.upper())  # Save to BytesIO
-        return "RGBA"
-    except OSError:
-        pass
-
-    try:
-        img = Image.new("RGB", (1, 1))  # Create a dummy image
-        img = img.convert("RGB")
-        img.save(buffer, format=image_format.upper())  # Save to BytesIO
-        return "RGB"
-    except OSError:
-        pass
-
-    try:
-        img = Image.new("L", (1, 1))  # Create a dummy image
-        img = img.convert("L")
-        img.save(buffer, format=image_format.upper())  # Save to BytesIO
-        return "L"
-    except OSError:
-        pass
+    for f in formats:
+        try:
+            img = Image.new(f, (1, 1))  # Create a dummy image
+            img = img.convert(f)
+            img.save(buffer, format=image_format.upper())  # Save to BytesIO
+            return f
+        except OSError:
+            pass
 
     raise OSError("No valid conversion found!")
