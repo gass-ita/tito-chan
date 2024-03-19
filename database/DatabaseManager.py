@@ -21,12 +21,29 @@ class DatabaseManager:
     def session_management(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
+            if "session" in kwargs and kwargs["session"]:
+                return func(self, *args, **kwargs)
+
             print("session management called...")
             session = self.session_maker()
             print("session created...")
             try:
                 kwargs["session"] = session
                 result = func(self, *args, **kwargs)
+
+                try:
+                    session.commit()
+                    print("committed!")
+                except InvalidRequestError:
+                    print("nothing to commit!")
+                    pass
+
+                try:
+                    session.expunge(result)
+                    print("expunged all!")
+                except InvalidRequestError:
+                    print("nothing to expunge!")
+                    pass
                 return result
             except:
                 session.rollback()
@@ -34,14 +51,6 @@ class DatabaseManager:
                 raise
             finally:
                 if session:
-                    try:
-                        print("committing session...")
-                        session.commit()
-                        print("committed!")
-                        pass
-                    except InvalidRequestError:
-                        print("already committed!")
-                        pass
                     if session.is_active:
                         try:
                             print("closing session...")
