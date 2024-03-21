@@ -6,7 +6,7 @@ from typing import Union
 from sqlalchemy.engine.url import URL
 from functools import wraps
 from sqlalchemy.exc import InvalidRequestError
-
+from database.SessionManager import session_management
 
 class DatabaseManager:
     def __init__(self, db_uri: Union[str, URL] = "sqlite:///:memory:"):
@@ -17,51 +17,6 @@ class DatabaseManager:
 
     def create_tables(self):
         Base.metadata.create_all(self.engine)
-
-    def session_management(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            if "session" in kwargs and kwargs["session"]:
-                return func(self, *args, **kwargs)
-
-            print("session management called...")
-            session = self.session_maker()
-            print("session created...")
-            try:
-                kwargs["session"] = session
-                result = func(self, *args, **kwargs)
-
-                try:
-                    session.commit()
-                    print("committed!")
-                except InvalidRequestError:
-                    print("nothing to commit!")
-                    pass
-
-                try:
-                    session.expunge(result)
-                    print("expunged all!")
-                except InvalidRequestError:
-                    print("nothing to expunge!")
-                    pass
-                return result
-            except:
-                session.rollback()
-                session.close()
-                raise
-            finally:
-                if session:
-                    if session.is_active:
-                        try:
-                            print("closing session...")
-                            session.close()
-                            print("closed!")
-                            pass
-                        except InvalidRequestError:
-                            print("already closed!")
-                            pass
-
-        return wrapper
 
     def get_base_obj_properties(self, base_obj):
         # Get the mapper for the base object
@@ -80,7 +35,7 @@ class DatabaseManager:
 
         return obj
 
-    @session_management
+    @session_management(auto_commit=True)
     def create_thread(
         self,
         username: str,
@@ -104,12 +59,11 @@ class DatabaseManager:
         session.add(post)
 
         post_obj = self.get_base_obj_properties(post)
-
         session.commit()
 
         return post_obj.id
 
-    @session_management
+    @session_management()
     def get_threads(
         self,
         section_id: int = None,
@@ -152,7 +106,7 @@ class DatabaseManager:
 
         return ret_threads
 
-    @session_management
+    @session_management()
     def get_post_max_pages(
         self, section_id=None, parent_id=None, size=50, session=None
     ):
@@ -171,19 +125,19 @@ class DatabaseManager:
 
         return (total_threads + size - 1) // size
 
-    @session_management
+    @session_management()
     def get_thread_by_id(self, thread_id, session=None):
         thread = session.query(Posts).filter(Posts.id == thread_id).first()
         return self.get_base_obj_properties(thread)
 
-    @session_management
+    @session_management(auto_commit=True)
     def delete_thread_by_id(self, session, thread_id):
         thread = session.query(Posts).filter(Posts.id == thread_id).first()
         if thread:
             session.delete(thread)
             session.commit()
 
-    @session_management
+    @session_management(auto_commit=True)
     def update_thread_by_id(
         self, thread_id, title, username, content, image_uuid, section_id, session=None
     ):
@@ -195,7 +149,7 @@ class DatabaseManager:
         thread.section_id = section_id
         session.commit()
 
-    @session_management
+    @session_management()
     def get_comments_by_thread_id(self, parent_id, page=0, size=50, session=None):
         if size < 0:
             raise ValueError("size must be >= 0")
@@ -220,13 +174,13 @@ class DatabaseManager:
 
         return ret_comments
 
-    @session_management
+    @session_management(auto_commit=True)
     def create_section(self, section_name, session=None):
         section = Sections(section_name=section_name)
         session.add(section)
         session.commit()
 
-    @session_management
+    @session_management()
     def get_all_sections(self, session=None):
         sections = session.query(Sections).all()
         ret_sections = []
@@ -235,7 +189,7 @@ class DatabaseManager:
 
         return ret_sections
 
-    @session_management
+    @session_management()
     def get_random_motd(self, session=None):
         import random
 
@@ -243,7 +197,7 @@ class DatabaseManager:
         motd = random.choice(motds)
         return self.get_base_obj_properties(motd)
 
-    @session_management
+    @session_management()
     def get_random_post(self, session=None):
         import random
 
@@ -251,7 +205,7 @@ class DatabaseManager:
         post = random.choice(posts)
         return self.get_base_obj_properties(post)
 
-    @session_management
+    @session_management()
     def get_section_by_id(self, section_id, session=None):
         section = session.query(Sections).filter(Sections.id == section_id).first()
         return self.get_base_obj_properties(section)
