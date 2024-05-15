@@ -3,7 +3,7 @@ from typing import Union
 
 
 class Post(BaseModel):
-    username: Union[str, None] = "Anonymous"
+    user_id: Union[int, None] = None
     section_id: int
     title: str
     content: Union[str, None] = None

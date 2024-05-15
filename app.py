@@ -49,6 +49,11 @@ SAVE_ALL = False
 COLOR_MODE = "RGB"
 
 
+
+db = DatabaseManager(DATABASE_URL)
+app = FastAPI()
+
+
 def initialization():
     required_directories_init(REQUIRED_DIRECTORIES=REQUIRED_DIRECTORIES)
 
@@ -70,10 +75,14 @@ def initialization():
     COLOR_MODE = check_color_mode_support(IMAGE_FORMAT)
 
     print(f"Color mode {COLOR_MODE} is supported by {IMAGE_FORMAT}!")
+        
+    
+       
+    
+    
 
 
-db = DatabaseManager(DATABASE_URL)
-app = FastAPI()
+
 
 
 @app.get("/")
@@ -142,7 +151,7 @@ async def create_thread(post: Post):
     # TODO: check for image_uuid existence, section and parent
     id = db.create_thread(
         title=post.title,
-        username=post.username,
+        user_id=post.user_id,
         content=post.content,
         image_uuid=post.image_uuid,
         section_id=post.section_id,
@@ -167,11 +176,21 @@ async def get_threads_by_section(
     # create a json response
     t = []
     for thread in threads:
+        
+        if thread.user_id:
+            user = db.get_user_by_id(thread.user_id)
+        else:
+            user = {
+                "username": "Anonymous",
+                "email": "Anonymous",
+                "id": -1
+            }
+        
         t.append(
             {
                 "id": thread.id,
                 "title": thread.title,
-                "username": thread.username,
+                "user": user,
                 "content": thread.content,
                 "image_uuid": thread.image_uuid,
                 "section_id": thread.section_id,
@@ -313,6 +332,11 @@ async def retrieve_image(image_uuid: str):
 
         img_io.seek(0)
         return StreamingResponse(img_io, media_type="image/" + IMAGE_FORMAT.lower())
+    
+@app.post("/users/register")
+async def register_user(username: str, password: str, email: str):
+    return {"user_id": db.register_user(username, password, email)}
+    
 
 
 if __name__ == "__main__":

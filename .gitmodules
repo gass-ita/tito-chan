@@ -1,0 +1,3 @@
+[submodule "sessionmanager"]
+	path = sessionmanager
+	url = https://github.com/gass-ita/sqlalchemy-sessionmanager.git

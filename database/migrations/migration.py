@@ -18,7 +18,7 @@ class Posts(Base):
     __tablename__ = "posts"
     id = Column(Integer, autoincrement=True, primary_key=True)
     title = Column(String(128), nullable=False)
-    username = Column(String(128), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, default=None)
     content = Column(Text, nullable=True)
     image_uuid = Column(String(255), nullable=True)
     parent_id = Column(
@@ -34,9 +34,18 @@ class Sections(Base):
     __tablename__ = "sections"
     id = Column(Integer, autoincrement=True, primary_key=True)
     section_name = Column(String(255))
+    image_uuid = Column(String(255), nullable=True)
 
 
 class Motds(Base):
     __tablename__ = "motds"
     id = Column(Integer, autoincrement=True, primary_key=True)
     motd = Column(Text, unique=True)
+    
+class Users(Base):
+    __tablename__ = "users"
+    id = Column(Integer, autoincrement=True, primary_key=True)
+    username = Column(String(128), nullable=False, unique=True)
+    password = Column(String(128), nullable=False)
+    email = Column(String(128), nullable=False, unique=True)
+    
