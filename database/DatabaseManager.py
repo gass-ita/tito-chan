@@ -5,7 +5,6 @@ from .migrations.migration import Base, Posts, Sections, Motds, Users
 from typing import Union
 from sqlalchemy.engine.url import URL
 from functools import wraps
-from sqlalchemy.exc import InvalidRequestError
 from sessionmanager.SessionManager import SessionManager
 from sqlalchemy.orm.session import Session
 
@@ -255,6 +254,7 @@ class DatabaseManager:
             user = Users(username=username, password=md5_passwd, email=email)
             session.add(user)
             session.commit()
+            return user.id
         
         return _register_user
     
